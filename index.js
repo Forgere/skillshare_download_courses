@@ -5,6 +5,7 @@ const path = require('path');
 const agent = require('superagent');
 const cheerio = require('cheerio');
 const { argv } = require('yargs');
+var ffmpeg = require('fluent-ffmpeg');
 const url = argv._[0];
 const defaultUrl = 'https://www.skillshare.com/classes/Customizing-Type-with-Draplin-Creating-Wordmarks-That-Work/1395825904';
 
@@ -73,106 +74,12 @@ function dealWithVideoPage(accountId, videoId, cb){
   });
 }
 
-// htmllink是h5播放器链接  m3u8link是默认的m3u8资源
-function dealWithVideoDownload(htmllink, m3u8link, cb){
-  console.log(`可直接观看`)
-  var options = { method: 'GET',
-    url: m3u8link,
-    headers: 
-    { 'postman-token': '493b22bc-6d97-b826-58d3-74f452d726c0',
-      'cache-control': 'no-cache' } };
-
-  const desUrl = path.join(__dirname, `./m3u8link.m3u8`);
-  request(options)
-    .pipe(fs.createWriteStream(desUrl))
-    .on('finish', () => {
-      fs.readFile(desUrl, (err, buffer) => {
-        const str = buffer.toString()
-        const match = str.match(new RegExp(/URI="([\W\w^"]*?.m3u8[\W\w^"]*?)"/));
-        const video = str.match(/RESOLUTION=1280[\w\W]*?(http:[\w\W]*?)#EXT/)
-        cb(null, match[1], video[1]);
-      })
-    })
-}
-
-// 处理m3u8文件
-function dealWithMainM3U8(ttyurl, videourl, callback){
-  async.parallel([
-    (cb) => {
-      dealWithM3U8(ttyurl, cb)
-    },
-    (cb) => {
-      dealWithM3U8(videourl, cb)
-    },
-  ], (err, res) => {
-    if (err) return callback(err)
-    downloadFiles(res, callback)
-  })
-}
-
-// 下载字幕 和 视频
-function downloadFiles(arr, callback){
-
-  function action(type, arr,cb){
-    console.log(`下载${type}`);
-    async.parallel(arr.map((url,index) => (cb) => {
-      const ttyPath = path.join(__dirname, `./${type+index}.${type==='字幕' ? 'tty': 'mp4'}`);
-      const fileExist = fs.existsSync(ttyPath)
-      request.get(url)
-        .pipe(fs.createWriteStream(ttyPath))
-        .on('finish', () => {
-          console.log(`${type}${index}`)
-          cb(null, ttyPath)
-        })
-    }), (err, res) => {
-      if(err) return cb(err);
-      console.log(`${type}下载完成`)
-      cb(null, res)
-    })
-  }
-
-  function action2(type, arr,cb){
-    console.log(`下载${type}`);
-    async.parallel(arr.map((url,index) => (cb) => {
-      const ttyPath = path.join(__dirname, `./${type}${index}.${type==='字幕' ? 'tty': 'mp4'}`);
-      console.log(`${type}${index}`)
-      request.get(url)
-        .pipe(fs.createWriteStream(ttyPath))
-        .on('close', () => {
-          console.log(`${type}${index}`)
-          cb(null, ttyPath)
-        })
-    }), (err, res) => {
-      if(err) return cb(err);
-      console.log(`${type}下载完成`)
-      cb(null, res)
-    })
-  }
-
-  async.parallel([
-    (cb) => {
-      action('字幕', arr[0] ,cb)
-    },
-    (cb) => {
-      action2('视频', arr[1], cb)
-    }
-  ], (err,res) => {
-    if (err) return callback(err)
-    callback(null, res)
-  })
-}
-
-function dealWithM3U8(url, cb) {
-  request.get(url)
-    .pipe(fs.createWriteStream(path.join(__dirname, `./master.m3u8`)))
-    .on('finish', () => {
-      fs.readFile(path.join(__dirname, `./master.m3u8`), (err, buffer) => {
-        if (err) return cb(err);
-        const str = buffer.toString();
-        const match = str.match(/(http[\W\w]*?)[\n]/g)
-        cb(null, match);
-      })
-    })
-}
-
 main(url, defaultUrl);
+// concatMp4([
+//   '/Users/sharrie/workspace/alibaba/study/node-skillshare/dist/视频0.mp4',
+//   '/Users/sharrie/workspace/alibaba/study/node-skillshare/dist/视频1.mp4',
+//   '/Users/sharrie/workspace/alibaba/study/node-skillshare/dist/视频2.mp4',
+//   '/Users/sharrie/workspace/alibaba/study/node-skillshare/dist/视频3.mp4',
+//   '/Users/sharrie/workspace/alibaba/study/node-skillshare/dist/视频4.mp4',
+//   '/Users/sharrie/workspace/alibaba/study/node-skillshare/dist/视频5.mp4',
+// ], 'oupt.mp4', ()=>{});
