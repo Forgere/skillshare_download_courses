@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require('path');
 const vtt2srt = require('node-vtt-to-srt');
 const request = require("request");
+const child_process = require('child_process');
 
 let dist, name;
 
@@ -25,10 +26,12 @@ function concatMp4(arr, filename, callback) {
     .outputOptions([
       '-c copy',
     ])
-    .save(filename)
+    .save(path.join(__dirname, '../dist/a.mp4'))
     .on('end', function() {
-      console.log('视频完成合并');
-      callback(null, 'finish merge');
+      child_process.exec(`ffmpeg -i dist/a.mp4 -vf subtitles=dist/a.srt "${filename}"`, (err) => {
+        if (err) return callback(err);
+        callback(null, '完成添加字幕');
+      })
     });
 }
 
@@ -46,7 +49,7 @@ function concatTty(arr, fileName, callback) {
         if (err) return callback(err);
         fs.createReadStream(path.join(__dirname, '../dist/list.vtt'))
           .pipe(vtt2srt())
-          .pipe(fs.createWriteStream(`${fileName}.srt`))
+          .pipe(fs.createWriteStream(path.join(__dirname, '../dist/a.srt')))
         console.log('字幕完成合并');
         callback(null, '合并完成字幕')
       })
@@ -216,8 +219,7 @@ function downVideo(accountId, videoId, diststr, cb) {
     ],
     (err, result) => {
       if(err) return cb(err)
-      require('child_process').exec(`rm -rf ${path.join(__dirname, '../dist')}`, () => {
-        require('child_process').exec(`cd / && pwd`)
+      child_process.exec(`rm -rf ${path.join(__dirname, '../dist')}`, () => {
         cb(null, result)
       })
     }
