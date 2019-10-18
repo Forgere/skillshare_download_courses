@@ -6,34 +6,7 @@ const vtt2srt = require('node-vtt-to-srt');
 const request = require("request");
 const child_process = require('child_process');
 
-let dist, name;
-
-function concatMp4(arr, filename, callback) {
-  var listFileName = path.join(__dirname, `../dist/${name}list.txt`),
-    fileNames = '';
-  // ffmpeg -f concat -i mylist.txt -c copy output
-  arr.forEach(function(fileName, index) {
-    fileNames = fileNames + `file '${fileName}'\n`;
-  });
-
-  fs.writeFileSync(listFileName, fileNames);
-
-  var merge = ffmpeg();
-  // ffmpeg -i VIDEO\ 1\ Class\ Trailer\ \ \ Draft\ 8\ BA\ FINAL.mp4 -vf subtitles=VIDEO\ 1\ Class\ Trailer\ \ \ Draft\ 8\ BA\ FINAL.srt 1.mp4
-  merge
-    .input(listFileName)
-    .inputOptions(['-f concat', '-safe 0'])
-    .outputOptions([
-      '-c copy',
-    ])
-    .save(path.join(__dirname, '../dist/a.mp4'))
-    .on('end', function() {
-      child_process.exec(`ffmpeg -i dist/a.mp4 -vf subtitles=dist/a.srt "${filename}"`, (err) => {
-        if (err) return callback(err);
-        callback(null, '完成添加字幕');
-      })
-    });
-}
+let dist, name, randomDirection;
 
 function concatTty(arr, fileName, callback) {
   async.series(
@@ -45,36 +18,35 @@ function concatTty(arr, fileName, callback) {
     }),
     (err, res) => {
       if (err) return callback(err)
-      fs.writeFile(path.join(__dirname, '../dist/list.vtt'), res.join('\n').split(/X-TIMESTAMP-MAP[\w\W]*?\n/).join('\n'), (err) => {
+      fs.writeFile(path.join(__dirname, `../${randomDirection}/list.vtt`), res.join('\n').split(/X-TIMESTAMP-MAP[\w\W]*?\n/).join('\n'), (err) => {
         if (err) return callback(err);
-        fs.createReadStream(path.join(__dirname, '../dist/list.vtt'))
+        fs.createReadStream(path.join(__dirname, `../${randomDirection}/list.vtt`))
           .pipe(vtt2srt())
-          .pipe(fs.createWriteStream(path.join(__dirname, '../dist/a.srt')))
-        console.log('字幕完成合并');
-        callback(null, '合并完成字幕')
+          .pipe(fs.createWriteStream(path.join(__dirname, `../${randomDirection}/a.srt`)))
+        console.log('info: 字幕完成合并');
+        callback(null, 'info: 合并完成字幕')
       })
     }
   )
 }
 
 function action(type, array, cb) {
-  console.log(`下载${type}`);
-  async.parallel(
+  async.parallelLimit(
     array.map((url, index) => cb => {
       const ttyPath = path.join(
         __dirname,
-        `../dist/${name}${type}${index}.${type === '字幕' ? 'vtt' : 'mp4'}`
+        `../${randomDirection}/${name}${type}${index}.${type === '字幕' ? 'vtt' : 'mp4'}`
       );
-      request
+      const req = request
         .get(url)
-        .pipe(fs.createWriteStream(ttyPath))
+      req.pipe(fs.createWriteStream(ttyPath))
         .on('close', () => {
           cb(null, ttyPath);
         })
     }),
     (err, res) => {
       if (err) return cb(err);
-      console.log(`${type}下载完成`);
+      console.log(`info: ${type}下载完成`);
       const exsit = fs.existsSync(`${dist}`);
       if (!exsit) fs.mkdirSync(`${dist}`)
       if (type === '视频') {
@@ -83,25 +55,32 @@ function action(type, array, cb) {
         concatTty(res, `${dist}/${name}`, cb)
       }
     }
-  );
+  ,4);
 }
 
 // 下载字幕 和 视频
 function downloadFiles(arr, callback) {
-  async.parallel(
-    [
-      cb => {
-        action('字幕', arr[1], cb);
-      },
-      cb => {
-        action('视频', arr[0], cb);
-      },
-    ],
-    (err, res) => {
-      if (err) return callback(err);
-      callback(null, res);
-    }
-  );
+  console.log('info: 开始下载字幕')
+  async.mapLimit(arr, 4, (url,cb) => {
+    const index = arr.findIndex(item => item === url)
+    const ttyPath = path.join(
+      __dirname,
+      `../${randomDirection}/${name}字幕${index}.srt}`
+    );
+    console.log(`${name}字幕${index}`)
+    const req = request
+      .get(url)
+    req.pipe(fs.createWriteStream(ttyPath))
+      .on('close', () => {
+        cb(null, ttyPath);
+      })
+  },(err, res) => {
+    if (err) return cb(err);
+    console.log(`info: 字幕下载完成`);
+    const exsit = fs.existsSync(`${dist}`);
+    if (!exsit) fs.mkdirSync(`${dist}`)
+    concatTty(res, `${dist}/${name}`, callback)
+  })
 }
 
 // 处理m3u8文件
@@ -109,30 +88,39 @@ function dealWithMainM3U8(ttyurl, videourl, callback) {
   async.series(
     [
       cb => {
-        dealWithM3U8(videourl, cb);
+        dealWithM3U8(ttyurl, (err, url) => {
+          downloadFiles(url, cb)
+        });
       },
       cb => {
-        dealWithM3U8(ttyurl, cb);
+        child_process.exec(`ffmpeg -i ${videourl}${ttyurl?' ':` -vf subtitles=${randomDirection}/a.srt`} -c copy -bsf:a aac_adtstoasc ${randomDirection}/a.mp4`, () => {
+          cb()
+        })
       },
     ],
     (err, res) => {
       if (err) return callback(err);
-      callback(null, res);
+      console.log(`info: 开始合并`)
+      child_process.exec(`ffmpeg -i ${randomDirection}/a.mp4 -vf subtitles=${randomDirection}/a.srt "${filename}"`, (err) => {
+        if (err) return callback(err);
+        callback(null, '完成添加字幕');
+      })
     }
   );
 }
 
 function dealWithM3U8(url, cb) {
+  if (!url) return cb()
   request
     .get(url)
-    .pipe(fs.createWriteStream(path.join(__dirname, `../dist/${name}master.m3u8`)))
+    .pipe(fs.createWriteStream(path.join(__dirname, `../${randomDirection}/${name}master.m3u8`)))
     .on('finish', () => {
       fs.readFile(
-        path.join(__dirname, `../dist/${name}master.m3u8`),
+        path.join(__dirname, `../${randomDirection}/${name}master.m3u8`),
         (err, buffer) => {
           if (err) return cb(err);
           const str = buffer.toString();
-          const match = str.match(/(http[\W\w]*?)[\n]/g);
+          const match = str.match(/(http[\W\w]*__)/g);
           cb(null, match);
         }
       );
@@ -141,7 +129,6 @@ function dealWithM3U8(url, cb) {
 
 // htmllink是h5播放器链接  m3u8link是默认的m3u8资源
 function dealWithVideoDownload(htmllink, m3u8link, cb) {
-  console.log(`可直接观看`);
   var options = {
     method: 'GET',
     url: m3u8link,
@@ -150,11 +137,11 @@ function dealWithVideoDownload(htmllink, m3u8link, cb) {
       'cache-control': 'no-cache',
     },
   };
-  const exist = fs.existsSync(path.join(__dirname, '../dist'));
+  const exist = fs.existsSync(path.join(__dirname, `../${randomDirection}`));
   if (!exist) {
-    fs.mkdirSync(path.join(__dirname, '../dist'));
+    fs.mkdirSync(path.join(__dirname, `../${randomDirection}`));
   }
-  const desUrl = path.join(__dirname, `../dist/${name}.m3u8`);
+  const desUrl = path.join(__dirname, `../${randomDirection}/${name}.m3u8`);
   request(options)
     .pipe(fs.createWriteStream(desUrl))
     .on('finish', () => {
@@ -163,9 +150,11 @@ function dealWithVideoDownload(htmllink, m3u8link, cb) {
         const match = str.match(
           new RegExp(/URI="([\W\w^"]*?.m3u8[\W\w^"]*?)"/)
         );
-        const video = str.match(/RESOLUTION=(1280|1024)[\w\W]*?(http:[\w\W]*?)#EXT/);
-
-        cb(null, match[1], video[2]);
+        const video = str.match(/RESOLUTION=(720|1024|1280)[\w\W]*?(http:[\w\W]*?)(#EXT|$)/);
+        if(!match){
+          console.log(options.url)
+        }
+        cb(null, match?match[1]:null, video[2]);
       });
     });
 }
@@ -173,6 +162,7 @@ function dealWithVideoDownload(htmllink, m3u8link, cb) {
 // 主页面进入之后 根据账户 视频 返回的信息， 拿到sources
 function dealWithVideoPage(accountId, videoId, cb) {
   const videoUrl = `https://edge.api.brightcove.com/playback/v1/accounts/${accountId}/videos/${videoId}`;
+  console.log(`info: 开始下载${videoUrl}`)
   var options = {
     method: 'GET',
     url: videoUrl,
@@ -198,8 +188,10 @@ function dealWithVideoPage(accountId, videoId, cb) {
   });
 }
 
-function downVideo(accountId, videoId, diststr, cb) {
+function downVideo(accountId, videoId, diststr, callback) {
   dist = diststr
+  randomDirection = `${require('uuid/v4')()}${videoId}`
+  console.log(`文件夹${randomDirection}`)
   async.waterfall(
     [
       cb => {
@@ -209,21 +201,20 @@ function downVideo(accountId, videoId, diststr, cb) {
         dealWithVideoDownload(htmllink, m3u8link, cb);
       },
       (url, video, cb) => {
-        console.log("准备下载字幕 视频")
+        console.log("info: 准备字幕 视频资源")
         dealWithMainM3U8(url, video, cb);
       },
-      (res, cb) => {
-        console.log("开始下载字幕 视频")
-        downloadFiles(res, cb)
-      }
     ],
     (err, result) => {
-      if(err) return cb(err)
-      child_process.exec(`rm -rf ${path.join(__dirname, '../dist')}`, () => {
-        cb(null, result)
-      })
+      if(err) return callback(err)
+      callback(null, result)
+
     }
   );
 }
+
+process.on('message', (res) => {
+  downVideo(res[0], res[1], res[2], ()=> {})
+})
 
 module.exports.downVideo = downVideo
