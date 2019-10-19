@@ -5,4 +5,8 @@ result.ac3
 result.m4a
 result.mp3
 result.ogg
-*.mp4
+*/**/*.mp4
+*/**/*srt
+*/**/*m3u8
+*/**/*vvt
+*/**/*txt
