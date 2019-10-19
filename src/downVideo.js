@@ -23,60 +23,31 @@ function concatTty(arr, fileName, callback) {
         fs.createReadStream(path.join(__dirname, `../${randomDirection}/list.vtt`))
           .pipe(vtt2srt())
           .pipe(fs.createWriteStream(path.join(__dirname, `../${randomDirection}/a.srt`)))
-        console.log('info: 字幕完成合并');
-        callback(null, 'info: 合并完成字幕')
+        console.log(`${name}info: 字幕完成合并`);
+        callback(null, `${name}info: 合并完成字幕`)
       })
     }
   )
 }
 
-function action(type, array, cb) {
-  async.parallelLimit(
-    array.map((url, index) => cb => {
-      const ttyPath = path.join(
-        __dirname,
-        `../${randomDirection}/${name}${type}${index}.${type === '字幕' ? 'vtt' : 'mp4'}`
-      );
-      const req = request
-        .get(url)
-      req.pipe(fs.createWriteStream(ttyPath))
-        .on('close', () => {
-          cb(null, ttyPath);
-        })
-    }),
-    (err, res) => {
-      if (err) return cb(err);
-      console.log(`info: ${type}下载完成`);
-      const exsit = fs.existsSync(`${dist}`);
-      if (!exsit) fs.mkdirSync(`${dist}`)
-      if (type === '视频') {
-        concatMp4(res, `${dist}/${name}.mp4`, cb);
-      } else {
-        concatTty(res, `${dist}/${name}`, cb)
-      }
-    }
-  ,4);
-}
-
 // 下载字幕 和 视频
 function downloadFiles(arr, callback) {
-  console.log('info: 开始下载字幕')
-  async.mapLimit(arr, 4, (url,cb) => {
-    const index = arr.findIndex(item => item === url)
+  if (!arr) return callback()
+  console.log(`${name}info: 开始下载${arr.length}个字幕`)
+  async.parallel(arr.map((url,index) => cb => {
     const ttyPath = path.join(
       __dirname,
-      `../${randomDirection}/${name}字幕${index}.srt}`
+      `../${randomDirection}/${name}字幕${index}.srt`
     );
-    console.log(`${name}字幕${index}`)
     const req = request
       .get(url)
     req.pipe(fs.createWriteStream(ttyPath))
       .on('close', () => {
         cb(null, ttyPath);
       })
-  },(err, res) => {
+  }),(err, res) => {
     if (err) return cb(err);
-    console.log(`info: 字幕下载完成`);
+    console.log(`${name}info: 字幕下载完成`);
     const exsit = fs.existsSync(`${dist}`);
     if (!exsit) fs.mkdirSync(`${dist}`)
     concatTty(res, `${dist}/${name}`, callback)
@@ -93,18 +64,19 @@ function dealWithMainM3U8(ttyurl, videourl, callback) {
         });
       },
       cb => {
-        child_process.exec(`ffmpeg -i ${videourl}${ttyurl?' ':` -vf subtitles=${randomDirection}/a.srt`} -c copy -bsf:a aac_adtstoasc ${randomDirection}/a.mp4`, () => {
-          cb()
+        console.log(`${name}info: 开始下载视频`)
+        let cp = child_process.exec(`ffmpeg -i ${videourl}${ttyurl?` -vf subtitles=${randomDirection}/a.srt`: ''} -bsf:a aac_adtstoasc ${JSON.stringify(`${dist}/${name}.mp4`)}`, () => {
+          cp.kill()
+          let cp2 = child_process.exec(`rm -rf ${randomDirection}`, () => {
+            cp2.kill()
+            cb()
+          })
         })
       },
     ],
     (err, res) => {
       if (err) return callback(err);
-      console.log(`info: 开始合并`)
-      child_process.exec(`ffmpeg -i ${randomDirection}/a.mp4 -vf subtitles=${randomDirection}/a.srt "${filename}"`, (err) => {
-        if (err) return callback(err);
-        callback(null, '完成添加字幕');
-      })
+      callback(null, 1)
     }
   );
 }
@@ -120,7 +92,7 @@ function dealWithM3U8(url, cb) {
         (err, buffer) => {
           if (err) return cb(err);
           const str = buffer.toString();
-          const match = str.match(/(http[\W\w]*__)/g);
+          const match = str.match(/(http[\W\w]*?__)/g);
           cb(null, match);
         }
       );
@@ -150,7 +122,7 @@ function dealWithVideoDownload(htmllink, m3u8link, cb) {
         const match = str.match(
           new RegExp(/URI="([\W\w^"]*?.m3u8[\W\w^"]*?)"/)
         );
-        const video = str.match(/RESOLUTION=(720|1024|1280)[\w\W]*?(http:[\w\W]*?)(#EXT|$)/);
+        const video = str.match(/RESOLUTION=(720|1024|1280)[\w\W]*?(http:[\w\W]*?)(\n#EXT|$)/);
         if(!match){
           console.log(options.url)
         }
@@ -162,7 +134,7 @@ function dealWithVideoDownload(htmllink, m3u8link, cb) {
 // 主页面进入之后 根据账户 视频 返回的信息， 拿到sources
 function dealWithVideoPage(accountId, videoId, cb) {
   const videoUrl = `https://edge.api.brightcove.com/playback/v1/accounts/${accountId}/videos/${videoId}`;
-  console.log(`info: 开始下载${videoUrl}`)
+  console.log(`${name}info: 开始下载${videoUrl}`)
   var options = {
     method: 'GET',
     url: videoUrl,
@@ -183,12 +155,13 @@ function dealWithVideoPage(accountId, videoId, cb) {
   request(options, function(error, response, body) {
     if (error) return cb(error);
     const sources = JSON.parse(body).sources;
-    name = JSON.parse(body).name;
+    name += JSON.parse(body).name;
     cb(null, sources.slice(-1)[0].src, sources[0].src);
   });
 }
 
-function downVideo(accountId, videoId, diststr, callback) {
+function downVideo(accountId, videoId, diststr, index, callback) {
+  name += `视频 ${index}`
   dist = diststr
   randomDirection = `${require('uuid/v4')()}${videoId}`
   console.log(`文件夹${randomDirection}`)
@@ -201,20 +174,22 @@ function downVideo(accountId, videoId, diststr, callback) {
         dealWithVideoDownload(htmllink, m3u8link, cb);
       },
       (url, video, cb) => {
-        console.log("info: 准备字幕 视频资源")
+        console.log(`${name}info: 准备字幕 视频资源`)
         dealWithMainM3U8(url, video, cb);
       },
     ],
     (err, result) => {
       if(err) return callback(err)
-      callback(null, result)
-
+      console.log('end this video')
+      callback(null, videoId)
     }
   );
 }
 
 process.on('message', (res) => {
-  downVideo(res[0], res[1], res[2], ()=> {})
+    downVideo(res[0], res[1], res[2], res[3], (err, str)=> {
+      process.send(str)
+    })
 })
 
 module.exports.downVideo = downVideo
