@@ -32,7 +32,12 @@ function concatTty(arr, fileName, callback) {
 
 // 下载字幕 和 视频
 function downloadFiles(arr, callback) {
-  if (!arr) return callback()
+  const exsit = fs.existsSync(`${dist}`);
+  if (!exsit) fs.mkdirSync(`${dist}`)
+  if (!arr){
+    console.log(`${name}info: 没有字幕`)
+    return callback()
+  }
   console.log(`${name}info: 开始下载${arr.length}个字幕`)
   async.parallel(arr.map((url,index) => cb => {
     const ttyPath = path.join(
@@ -47,9 +52,7 @@ function downloadFiles(arr, callback) {
       })
   }),(err, res) => {
     if (err) return cb(err);
-    console.log(`${name}info: 字幕下载完成`);
-    const exsit = fs.existsSync(`${dist}`);
-    if (!exsit) fs.mkdirSync(`${dist}`)
+    console.log(`${name}info: 字幕下载完成`); 
     concatTty(res, `${dist}/${name}`, callback)
   })
 }
@@ -122,8 +125,8 @@ function dealWithVideoDownload(htmllink, m3u8link, cb) {
         const match = str.match(
           new RegExp(/URI="([\W\w^"]*?.m3u8[\W\w^"]*?)"/)
         );
-        const video = str.match(/RESOLUTION=(720|1024|1280)[\w\W]*?(http:[\w\W]*?)(\n#EXT|$)/);
-        if(!match){
+        const video = str.match(/RESOLUTION=(720|1024|1280|560|320)[\w\W]*?(http:[\w\W]*?)(\n#EXT|$)/);
+        if(!video){
           console.log(options.url)
         }
         cb(null, match?match[1]:null, video[2]);
@@ -161,7 +164,7 @@ function dealWithVideoPage(accountId, videoId, cb) {
 }
 
 function downVideo(accountId, videoId, diststr, index, callback) {
-  name = `视频 ${index}`
+  name = `视频${index} `
   dist = diststr
   randomDirection = `${require('uuid/v4')()}${videoId}`
   console.log(`文件夹${randomDirection}`)
