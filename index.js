@@ -57,7 +57,6 @@ function dealWithMainPage(url, callback) {
   request(options, function (error, response, body) {
     if (error) return callback(error);
     const videoId = [...new Set(body.match(new RegExp(/"videoId":"bc:(\d*)"?/g)))];
-    console.log(videoId)
     const videos = videoId.map(item => item.match(/bc:(\d*)"/)[1])
     console.log(`本课程一共有${videos.length}个视频`);
     const $ = cheerio.load(body);
