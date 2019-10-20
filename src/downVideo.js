@@ -163,7 +163,7 @@ function dealWithVideoPage(accountId, videoId, cb) {
 }
 
 function downVideo(accountId, videoId, diststr, index, callback) {
-  name = `视频${index} `
+  name = `视频${index}`
   dist = diststr
   randomDirection = `${require('uuid/v4')()}${videoId}`
   console.log(`文件夹${randomDirection}`)
