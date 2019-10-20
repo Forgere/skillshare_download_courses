@@ -18,11 +18,11 @@ function concatTty(arr, fileName, callback) {
     }),
     (err, res) => {
       if (err) return callback(err)
-      fs.writeFile(path.join(__dirname, `../${randomDirection}/list.vtt`), res.join('\n').split(/X-TIMESTAMP-MAP[\w\W]*?\n/).join('\n'), (err) => {
+      fs.writeFile(path.join(__dirname, `../tmp/${randomDirection}/list.vtt`), res.join('\n').split(/X-TIMESTAMP-MAP[\w\W]*?\n/).join('\n'), (err) => {
         if (err) return callback(err);
-        fs.createReadStream(path.join(__dirname, `../${randomDirection}/list.vtt`))
+        fs.createReadStream(path.join(__dirname, `../tmp/${randomDirection}/list.vtt`))
           .pipe(vtt2srt())
-          .pipe(fs.createWriteStream(path.join(__dirname, `../${randomDirection}/a.srt`)))
+          .pipe(fs.createWriteStream(path.join(__dirname, `../tmp/${randomDirection}/a.srt`)))
         console.log(`${name}info: 字幕完成合并`);
         callback(null, `${name}info: 合并完成字幕`)
       })
@@ -42,7 +42,7 @@ function downloadFiles(arr, callback) {
   async.parallel(arr.map((url,index) => cb => {
     const ttyPath = path.join(
       __dirname,
-      `../${randomDirection}/${name}字幕${index}.srt`
+      `../tmp/${randomDirection}/${name}字幕${index}.srt`
     );
     const req = request
       .get(url)
@@ -68,10 +68,10 @@ function dealWithMainM3U8(ttyurl, videourl, callback) {
       },
       cb => {
         console.log(`${name}info: 开始下载视频`)
-        let cp = child_process.exec(`ffmpeg -i ${videourl}${ttyurl?` -vf subtitles=${randomDirection}/a.srt`: ''} -bsf:a aac_adtstoasc ${JSON.stringify(`${dist}/${name}.mp4`)}`, (error, stdout, stderr) => {
+        let cp = child_process.exec(`ffmpeg -i ${videourl}${ttyurl?` -vf subtitles=tmp/${randomDirection}/a.srt`: ''} -bsf:a aac_adtstoasc ${JSON.stringify(`${dist}/${name}.mp4`)}`, (error, stdout, stderr) => {
           console.log(error, stdout, stderr)
           cp.kill()
-          let cp2 = child_process.exec(`rm -rf ${randomDirection}`, () => {
+          let cp2 = child_process.exec(`rm -rf tmp/${randomDirection}`, () => {
             cp2.kill()
             cb()
           })
@@ -89,10 +89,10 @@ function dealWithM3U8(url, cb) {
   if (!url) return cb()
   request
     .get(url)
-    .pipe(fs.createWriteStream(path.join(__dirname, `../${randomDirection}/${name}master.m3u8`)))
+    .pipe(fs.createWriteStream(path.join(__dirname, `../tmp/${randomDirection}/${name}master.m3u8`)))
     .on('finish', () => {
       fs.readFile(
-        path.join(__dirname, `../${randomDirection}/${name}master.m3u8`),
+        path.join(__dirname, `../tmp/${randomDirection}/${name}master.m3u8`),
         (err, buffer) => {
           if (err) return cb(err);
           const str = buffer.toString();
@@ -113,11 +113,11 @@ function dealWithVideoDownload(htmllink, m3u8link, cb) {
       'cache-control': 'no-cache',
     },
   };
-  const exist = fs.existsSync(path.join(__dirname, `../${randomDirection}`));
+  const exist = fs.existsSync(path.join(__dirname, `../tmp/${randomDirection}`));
   if (!exist) {
-    fs.mkdirSync(path.join(__dirname, `../${randomDirection}`));
+    fs.mkdirSync(path.join(__dirname, `../tmp/${randomDirection}`));
   }
-  const desUrl = path.join(__dirname, `../${randomDirection}/${name}.m3u8`);
+  const desUrl = path.join(__dirname, `../tmp/${randomDirection}/${name}.m3u8`);
   request(options)
     .pipe(fs.createWriteStream(desUrl))
     .on('finish', () => {
@@ -126,7 +126,7 @@ function dealWithVideoDownload(htmllink, m3u8link, cb) {
         const match = str.match(
           new RegExp(/URI="([\W\w^"]*?.m3u8[\W\w^"]*?)"/)
         );
-        const video = str.match(/RESOLUTION=(768|720|960|1024|1280|1600|560|320)[\w\W]*?(http:[\w\W]*?)(\n#EXT|$)/);
+        const video = str.match(/RESOLUTION=(768|720|960|1024|1280|560|320)[\w\W]*?(http:[\w\W]*?)(\n#EXT|$)/);
         if(!video){
           console.log(options.url)
         }

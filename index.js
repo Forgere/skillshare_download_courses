@@ -28,7 +28,15 @@ function main(url) {
       if (err) return cb(`dealwithmainpage error ${err}`)
       const wr = child_process.fork('src/downVideo.js');
       
-      wr.send([accountId, videoId, path.join(__dirname, `${direction}`), index])
+      if (!fs.existsSync('download')){
+        fs.mkdirSync('download')
+      }
+
+      if (!fs.existsSync('tmp')) {
+        fs.mkdirSync('tmp')
+      }
+
+      wr.send([accountId, videoId, path.join(__dirname, `download/${direction}`), index])
       wr.on('message', (res) => {
         console.log(res)
         wr.kill()
