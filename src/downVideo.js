@@ -158,7 +158,6 @@ function dealWithVideoPage(accountId, videoId, cb) {
   request(options, function(error, response, body) {
     if (error) return cb(error);
     const sources = JSON.parse(body).sources;
-    name += JSON.parse(body).name;
     cb(null, sources.slice(-1)[0].src, sources[0].src);
   });
 }
@@ -170,8 +169,9 @@ function downVideo(accountId, videoId, diststr, index, callback) {
   console.log(`文件夹${randomDirection}`)
 
   const exsit = fs.existsSync(`${dist}/${name}.mp4`);
+  console.log(`fs.existsSync(${dist}/${name}.mp4)`, exsit)
   if (exsit) return callback(null, '存在当前文件， 跳过下载')
-
+  
   async.waterfall(
     [
       cb => {
