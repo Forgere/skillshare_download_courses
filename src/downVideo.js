@@ -68,7 +68,8 @@ function dealWithMainM3U8(ttyurl, videourl, callback) {
       },
       cb => {
         console.log(`${name}info: 开始下载视频`)
-        let cp = child_process.exec(`ffmpeg -i ${videourl}${ttyurl?` -vf subtitles=${randomDirection}/a.srt`: ''} -bsf:a aac_adtstoasc ${JSON.stringify(`${dist}/${name}.mp4`)}`, () => {
+        let cp = child_process.exec(`ffmpeg -i ${videourl}${ttyurl?` -vf subtitles=${randomDirection}/a.srt`: ''} -bsf:a aac_adtstoasc ${JSON.stringify(`${dist}/${name}.mp4`)}`, (error, stdout, stderr) => {
+          console.log(error, stdout, stderr)
           cp.kill()
           let cp2 = child_process.exec(`rm -rf ${randomDirection}`, () => {
             cp2.kill()
@@ -125,7 +126,7 @@ function dealWithVideoDownload(htmllink, m3u8link, cb) {
         const match = str.match(
           new RegExp(/URI="([\W\w^"]*?.m3u8[\W\w^"]*?)"/)
         );
-        const video = str.match(/RESOLUTION=(720|1024|1280|560|320)[\w\W]*?(http:[\w\W]*?)(\n#EXT|$)/);
+        const video = str.match(/RESOLUTION=(768|720|960|1024|1280|1600|560|320)[\w\W]*?(http:[\w\W]*?)(\n#EXT|$)/);
         if(!video){
           console.log(options.url)
         }
@@ -166,10 +167,9 @@ function downVideo(accountId, videoId, diststr, index, callback) {
   name = `视频${index}`
   dist = diststr
   randomDirection = `${require('uuid/v4')()}${videoId}`
-  console.log(`文件夹${randomDirection}`)
 
   const exsit = fs.existsSync(`${dist}/${name}.mp4`);
-  console.log(`fs.existsSync(${dist}/${name}.mp4)`, exsit)
+
   if (exsit) return callback(null, '存在当前文件， 跳过下载')
   
   async.waterfall(
@@ -199,4 +199,4 @@ process.on('message', (res) => {
     })
 })
 
-module.exports.downVideo = downVideo
+module.exports = {downVideo, dealWithVideoDownload}
