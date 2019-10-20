@@ -30,7 +30,7 @@ function main(url) {
         wr.kill()
         cb(null, videoId)
       })
-    }),8,(err, res) => {
+    }),4,(err, res) => {
       if (err) return console.log(err);
       console.log(res)
     })

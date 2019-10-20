@@ -168,6 +168,10 @@ function downVideo(accountId, videoId, diststr, index, callback) {
   dist = diststr
   randomDirection = `${require('uuid/v4')()}${videoId}`
   console.log(`文件夹${randomDirection}`)
+
+  const exsit = fs.existsSync(`${dist}/${name}.mp4`);
+  if (exsit) return callback(null, '存在当前文件， 跳过下载')
+
   async.waterfall(
     [
       cb => {
