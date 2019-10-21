@@ -32,8 +32,6 @@ function concatTty(arr, fileName, callback) {
 
 // 下载字幕 和 视频
 function downloadFiles(arr, callback) {
-  const exsit = fs.existsSync(`${dist}`);
-  if (!exsit) fs.mkdirSync(`${dist}`)
   if (!arr){
     console.log(`${name}info: 没有字幕`)
     return callback()
@@ -69,7 +67,6 @@ function dealWithMainM3U8(ttyurl, videourl, callback) {
       cb => {
         console.log(`${name}info: 开始下载视频`)
         let cp = child_process.exec(`ffmpeg -i ${videourl}${ttyurl?` -vf subtitles=tmp/${randomDirection}/a.srt`: ''} -bsf:a aac_adtstoasc ${JSON.stringify(`${dist}/${name}.mp4`)}`, (error, stdout, stderr) => {
-          console.log(error, stdout, stderr)
           cp.kill()
           let cp2 = child_process.exec(`rm -rf tmp/${randomDirection}`, () => {
             cp2.kill()
@@ -157,15 +154,26 @@ function dealWithVideoPage(accountId, videoId, cb) {
   };
 
   request(options, function(error, response, body) {
-    if (error) return cb(error);
     const sources = JSON.parse(body).sources;
-    cb(null, sources.slice(-1)[0].src, sources[0].src);
+    if (error) return cb(error);
+    if (sources[0].src) {
+      cb(null, sources.slice(-1)[0].src, sources[0].src)
+    } else {
+      options.url = sources[1].src
+      request(options)
+        .pipe(fs.createWriteStream(`${dist}/${name}.mp4`))
+        .on('close', () => {
+          cb(null, 1)
+        })
+    }
   });
 }
 
 function downVideo(accountId, videoId, diststr, index, callback) {
   name = `视频${index}`
   dist = diststr
+  const exsitdir = fs.existsSync(`${dist}`);
+  if (!exsitdir) fs.mkdirSync(`${dist}`)
   randomDirection = `${require('uuid/v4')()}${videoId}`
 
   const exsit = fs.existsSync(`${dist}/${name}.mp4`);
