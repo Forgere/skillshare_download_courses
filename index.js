@@ -74,4 +74,6 @@ function dealWithMainPage(url, callback) {
   });
 }
 
-main(url, defaultUrl);
+// main(url, defaultUrl);
+
+module.exports = {main}

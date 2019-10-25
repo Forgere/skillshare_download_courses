@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Hello World!</title>
+  </head>
+  <body>
+    <h1>Hello World!</h1>
+    We are using node <script>document.write(process.versions.node)</script>,
+    Chrome <script>document.write(process.versions.chrome)</script>,
+    and Electron <script>document.write(process.versions.electron)</script>.
+    <input type="text" id="input">
+    <button id="submit">submit</button>
+    <script>
+        const {main} = require('./index.js')
+        console.log(main)
+        
+        document.getElementById('submit').addEventListener('click',(event) => {
+            const url = document.getElementById('input').value;
+            if (url) {
+                main(url)
+            }
+        })
+    </script>
+  </body>
+</html>
