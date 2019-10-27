@@ -66,6 +66,7 @@ function dealWithMainM3U8(ttyurl, videourl, callback) {
       },
       cb => {
         console.log(`${name}info: 开始下载视频`)
+        // console.log(`ffmpeg -i ${videourl}${ttyurl?` -vf subtitles=tmp/${randomDirection}/a.srt`: ''} -bsf:a aac_adtstoasc ${JSON.stringify(`${dist}/${name}.mp4`)}`)
         let cp = child_process.exec(`ffmpeg -i ${videourl}${ttyurl?` -vf subtitles=tmp/${randomDirection}/a.srt`: ''} -bsf:a aac_adtstoasc ${JSON.stringify(`${dist}/${name}.mp4`)}`, (error, stdout, stderr) => {
           cp.kill()
           let cp2 = child_process.exec(`rm -rf tmp/${randomDirection}`, () => {
@@ -124,6 +125,7 @@ function dealWithVideoDownload(htmllink, m3u8link, cb) {
           new RegExp(/URI="([\W\w^"]*?.m3u8[\W\w^"]*?)"/)
         );
         const video = str.match(/RESOLUTION=(768|720|960|1024|1280|560|320)[\w\W]*?(http:[\w\W]*?)(\n#EXT|$)/);
+
         if(!video){
           console.log(options.url)
         }
@@ -154,8 +156,9 @@ function dealWithVideoPage(accountId, videoId, cb) {
   };
 
   request(options, function(error, response, body) {
-    const sources = JSON.parse(body).sources;
     if (error) return cb(error);
+    const sources = JSON.parse(body).sources;
+
     if (sources[0].src) {
       cb(null, sources.slice(-1)[0].src, sources[0].src)
     } else {

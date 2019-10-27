@@ -72,7 +72,9 @@ function dealWithMainPage(url, callback) {
     console.log(`本课程一共有${videos.length}个视频`);
     const $ = cheerio.load(body);
     const accountId = $('.js-select-menu-off.vjs-video').attr('data-account');
-    const direction = $('.class-details-header-name').text().trim()
+    const direction = $('.class-details-header-name').text().trim().split('\n').join('').replace(/(  )/g, '')
+    console.log(JSON.stringify(direction))
+
     callback(null, accountId, videos, direction)
   });
 }
